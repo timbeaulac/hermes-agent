@@ -1,6 +1,7 @@
 name: Tests
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths-ignore:
@@ -22,10 +23,11 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      max-parallel: ${{ startsWith(github.event_name, 'pull_request') && 6 || 1 }}
       matrix:
         slice: [1, 2, 3, 4, 5, 6]
     steps:
@@ -47,14 +49,18 @@ jobs:
         run: |
           set -euo pipefail
           RG_VERSION=15.1.0
-          RG_SHA256=1c9297be4a084eea7ecaedf93eb03d058d6faae29bbc57ecdaf5063921491599
-          RG_TARBALL=ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl.tar.gz
+          case "$(uname -m)" in
+            aarch64) RG_TARGET=aarch64-unknown-linux-gnu; RG_SHA256=2b661c6ef508e902f388e9098d9c4c5aca72c87b55922d94abdba830b4dc885e ;;
+            x86_64) RG_TARGET=x86_64-unknown-linux-musl; RG_SHA256=1c9297be4a084eea7ecaedf93eb03d058d6faae29bbc57ecdaf5063921491599 ;;
+            *) echo 'Unsupported runner architecture'; exit 1 ;;
+          esac
+          RG_TARBALL=ripgrep-${RG_VERSION}-${RG_TARGET}.tar.gz
           curl -sSfL -o "$RG_TARBALL" \
             "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${RG_TARBALL}"
           echo "${RG_SHA256}  ${RG_TARBALL}" | sha256sum -c -
           tar -xzf "$RG_TARBALL"
-          sudo mv "ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl/rg" /usr/local/bin/rg
-          rm -rf "$RG_TARBALL" "ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl"
+          sudo mv "ripgrep-${RG_VERSION}-${RG_TARGET}/rg" /usr/local/bin/rg
+          rm -rf "$RG_TARBALL" "ripgrep-${RG_VERSION}-${RG_TARGET}"
           rg --version
 
       - name: Install uv
@@ -114,6 +120,7 @@ jobs:
           python scripts/run_tests_parallel.py --slice ${{ matrix.slice }}/6
         env:
           # Ensure tests don't accidentally call real APIs
+          HERMES_TEST_WORKERS: ${{ startsWith(github.event_name, 'pull_request') && '' || '3' }}
           OPENROUTER_API_KEY: ""
           OPENAI_API_KEY: ""
           NOUS_API_KEY: ""
@@ -130,7 +137,7 @@ jobs:
   save-durations:
     needs: test
     if: needs.test.result == 'success' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     steps:
       - name: Download all slice durations
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -159,7 +166,7 @@ jobs:
           key: test-durations-${{ github.run_id }}
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -169,14 +176,18 @@ jobs:
         run: |
           set -euo pipefail
           RG_VERSION=15.1.0
-          RG_SHA256=1c9297be4a084eea7ecaedf93eb03d058d6faae29bbc57ecdaf5063921491599
-          RG_TARBALL=ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl.tar.gz
+          case "$(uname -m)" in
+            aarch64) RG_TARGET=aarch64-unknown-linux-gnu; RG_SHA256=2b661c6ef508e902f388e9098d9c4c5aca72c87b55922d94abdba830b4dc885e ;;
+            x86_64) RG_TARGET=x86_64-unknown-linux-musl; RG_SHA256=1c9297be4a084eea7ecaedf93eb03d058d6faae29bbc57ecdaf5063921491599 ;;
+            *) echo 'Unsupported runner architecture'; exit 1 ;;
+          esac
+          RG_TARBALL=ripgrep-${RG_VERSION}-${RG_TARGET}.tar.gz
           curl -sSfL -o "$RG_TARBALL" \
             "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${RG_TARBALL}"
           echo "${RG_SHA256}  ${RG_TARBALL}" | sha256sum -c -
           tar -xzf "$RG_TARBALL"
-          sudo mv "ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl/rg" /usr/local/bin/rg
-          rm -rf "$RG_TARBALL" "ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl"
+          sudo mv "ripgrep-${RG_VERSION}-${RG_TARGET}/rg" /usr/local/bin/rg
+          rm -rf "$RG_TARBALL" "ripgrep-${RG_VERSION}-${RG_TARGET}"
           rg --version
 
       - name: Install uv
@@ -217,6 +228,7 @@ jobs:
           source .venv/bin/activate
           python -m pytest tests/e2e/ -v --tb=short
         env:
+          HERMES_TEST_WORKERS: ${{ startsWith(github.event_name, 'pull_request') && '' || '3' }}
           OPENROUTER_API_KEY: ""
           OPENAI_API_KEY: ""
           NOUS_API_KEY: ""

@@ -14,6 +14,7 @@ name: History Check
 # the PR head and main to be non-empty.
 
 on:
+  workflow_dispatch:
   # No paths filter — the job must always run so the required check
   # reports a status (path-gated workflows leave checks "pending" forever
   # when no matching files change, which blocks merge).
@@ -25,7 +26,7 @@ permissions:
 
 jobs:
   check-common-ancestor:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

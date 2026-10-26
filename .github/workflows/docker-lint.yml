@@ -11,6 +11,7 @@ name: Docker / shell lint
 # activate script doesn't exist at lint time.
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -35,7 +36,7 @@ concurrency:
 jobs:
   hadolint:
     name: Lint Dockerfile (hadolint)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     timeout-minutes: 5
     steps:
       - name: Checkout code
@@ -50,7 +51,7 @@ jobs:
 
   shellcheck:
     name: Lint docker/ shell scripts (shellcheck)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     timeout-minutes: 5
     steps:
       - name: Checkout code

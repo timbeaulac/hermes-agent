@@ -44,6 +44,7 @@ name: uv.lock check
 # the same way.  Better to catch it here than after merge.
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -67,7 +68,7 @@ concurrency:
 jobs:
   check:
     name: uv lock --check
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     timeout-minutes: 5
     steps:
       - name: Checkout code
