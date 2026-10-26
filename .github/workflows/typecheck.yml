@@ -2,6 +2,7 @@
 name: Typecheck
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   # No paths filter — the job must always run so the required check
@@ -12,7 +13,7 @@ on:
 
 jobs:
   typecheck:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     strategy:
       matrix:
         package:
@@ -34,7 +35,7 @@ jobs:
   # users build apps/desktop from source on install/update. Run the real
   # `vite build` here so that class of break fails in CI instead.
   desktop-build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4

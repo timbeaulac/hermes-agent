@@ -11,6 +11,7 @@ name: Docker / shell lint
 # activate script doesn't exist at lint time.
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -35,7 +36,7 @@ concurrency:
 jobs:
   hadolint:
     name: Lint Dockerfile (hadolint)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     timeout-minutes: 5
     steps:
       - name: Checkout code
@@ -50,13 +51,14 @@ jobs:
 
   shellcheck:
     name: Lint docker/ shell scripts (shellcheck)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(startsWith(github.event_name, 'pull_request') && '["ubuntu-latest"]' || '["self-hosted", "Linux", "ARM64", "mac-mini", "ci-linux"]') }}
     timeout-minutes: 5
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: shellcheck
+        if: runner.arch != 'ARM64'
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # v2.0.0
         env:
           # Severity = error: SC1091 (can't follow sourced script) is info-
@@ -65,3 +67,15 @@ jobs:
           SHELLCHECK_OPTS: --severity=error
         with:
           scandir: ./docker
+
+      - name: ShellCheck on ARM64
+        if: runner.arch == 'ARM64'
+        run: |
+          curl -fsSL --retry 3 https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.aarch64.tar.xz -o "$RUNNER_TEMP/shellcheck.tar.xz"
+          echo "12b331c1d2db6b9eb13cfca64306b1b157a86eb69db83023e261eaa7e7c14588  $RUNNER_TEMP/shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/shellcheck.tar.xz" -C "$RUNNER_TEMP"
+          while IFS= read -r -d '' file; do
+            if [[ "$file" == *.sh || "$file" == *.bash || "$file" == *.ksh || "$file" == *.zsh ]] || head -n 1 "$file" | grep -Eq '^#! */[^ ]*/(env *)?[abk]*sh'; then
+              "$RUNNER_TEMP/shellcheck-v0.11.0/shellcheck" --severity=error --format=gcc "$file"
+            fi
+          done < <(find docker -type f -print0)
